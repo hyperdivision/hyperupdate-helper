@@ -1,10 +1,26 @@
 #include <stdio.h>
-#include <unistd.h>
 
-#ifndef WIN32
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#else
 #include <sys/file.h>
+#include <unistd.h>
 #endif
 
+#ifdef _WIN32
+static int aquire_lock (char *lock_file) {
+  HANDLE fd = CreateFileA(lock_file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+  if (fd == INVALID_HANDLE_VALUE) return -1;
+
+  while (1) {
+    int locked = LockFile(fd, 0, 0, 1, 0) ? 1 : 0;
+    Sleep(1000);
+    if (locked == 1) return 0;
+  }
+}
+#else
 static int aquire_lock (char *lock_file) {
   int fd = open(lock_file, O_RDONLY);
 
@@ -12,16 +28,21 @@ static int aquire_lock (char *lock_file) {
 
   while (1) {
     int locked = flock(fd, LOCK_EX | LOCK_NB) == 0 ? 1 : 0;
-    if (locked == 0) return 0;
     sleep(1);
+    if (locked == 1) return 0;
   }
 }
+#endif
 
 // for windows in case lock is released early
 static int rename_retry (char *old, char *new) {
   for (int i = 0; i < 4; i++) {
     if (!rename(old, new)) return 0;
+#ifdef _WIN32
+    Sleep(2000);
+#else
     sleep(2);
+#endif
   }
   return -1;
 }
@@ -39,7 +60,6 @@ int main (int argc, char **argv) {
   char *exec_path = *(++argv);
 
   if (aquire_lock(lock_file)) return 2;
-  sleep(1); // in case the app releases the lock during shutdown
 
   if (rename_retry(new_version_path, tmp_path)) return 3;
   if (rename_retry(app_path, new_version_path)) return 4;
