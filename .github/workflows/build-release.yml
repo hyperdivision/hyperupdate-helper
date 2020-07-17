@@ -1,0 +1,26 @@
+on:
+  push:
+    branches:
+      - master
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+name: Build binaries and create release
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-16.04]
+    runs-on: ${{ matrix.os }}
+    name: Build
+    steps:
+      - uses: actions/checkout@v2.1.0
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: ${{ matrix.os == 'windows-latest' }}
+      - run: |
+          cl.exe helper.c
+          Move-Item -Path "helper.exe" -Destination "bin\win32-x64.exe"
+        if: ${{ matrix.os == 'windows-latest' }}
+      - run: make
+        if: ${{ matrix.os != 'windows-latest' }}

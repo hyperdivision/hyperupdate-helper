@@ -1,7 +1,7 @@
 ifeq ($(shell uname -s),Darwin)
-	OUT := bin/darwin
+	OUT := bin/darwin-x64
 else
-	OUT := bin/linux
+	OUT := bin/linux-x64
 endif
 
 $(OUT): helper.c
