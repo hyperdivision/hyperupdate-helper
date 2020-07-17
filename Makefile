@@ -5,5 +5,4 @@ else
 endif
 
 $(OUT): helper.c
-	mkdir -p bin
 	$(CC) helper.c -Os -o $(OUT)
