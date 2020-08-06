@@ -9,28 +9,42 @@
 #endif
 
 #ifdef _WIN32
-static int aquire_lock (char *lock_file) {
-  HANDLE fd = CreateFileA(lock_file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+static HANDLE fd_lock;
 
-  if (fd == INVALID_HANDLE_VALUE) return -1;
+static int aquire_lock (char *lock_file) {
+  fd_lock = CreateFileA(lock_file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+  if (fd_lock == INVALID_HANDLE_VALUE) return -1;
 
   while (1) {
-    int locked = LockFile(fd, 0, 0, 1, 0) ? 1 : 0;
+    int locked = LockFile(fd_lock, 0, 0, 1, 0) ? 1 : 0;
     Sleep(1000);
     if (locked == 1) return 0;
   }
 }
-#else
-static int aquire_lock (char *lock_file) {
-  int fd = open(lock_file, O_RDONLY);
 
-  if (fd < 0) return -1;
+static void release_lock () {
+  UnlockFile(fd_lock, 0, 0, 1, 0);
+  CloseHandle(fd_lock);
+}
+#else
+static int fd_lock;
+
+static int aquire_lock (char *lock_file) {
+  fd_lock = open(lock_file, O_RDONLY);
+
+  if (fd_lock < 0) return -1;
 
   while (1) {
-    int locked = flock(fd, LOCK_EX | LOCK_NB) == 0 ? 1 : 0;
+    int locked = flock(fd_lock, LOCK_EX | LOCK_NB) == 0 ? 1 : 0;
     sleep(1);
     if (locked == 1) return 0;
   }
+}
+
+static void release_lock () {
+  flock(fd_lock, LOCK_UN | LOCK_NB);
+  close(fd_lock);
 }
 #endif
 
@@ -65,5 +79,6 @@ int main (int argc, char **argv) {
   if (rename_retry(app_path, new_version_path)) return 4;
   if (rename_retry(tmp_path, app_path)) return 5;
 
+  release_lock();
   return execv(exec_path, argv);
 }
